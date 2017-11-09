@@ -1,0 +1,32 @@
+<RCC>
+    <qresource prefix="/img">
+        <file>icons2/about.png</file>
+        <file>icons2/background_color.png</file>
+        <file>icons2/choose_font.png</file>
+        <file>icons2/clear_selection.png</file>
+        <file>icons2/color_options.png</file>
+        <file>icons2/copy.png</file>
+        <file>icons2/cut.png</file>
+        <file>icons2/find_next.png</file>
+        <file>icons2/find_previous.png</file>
+        <file>icons2/font_color_2.png</file>
+        <file>icons2/font_color.png</file>
+        <file>icons2/main.png</file>
+        <file>icons2/new_file.png</file>
+        <file>icons2/open.png</file>
+        <file>icons2/open2.png</file>
+        <file>icons2/open3.png</file>
+        <file>icons2/paste.png</file>
+        <file>icons2/qt.png</file>
+        <file>icons2/redo.png</file>
+        <file>icons2/replace.png</file>
+        <file>icons2/search.png</file>
+        <file>icons2/search2.png</file>
+        <file>icons2/selectAll.png</file>
+        <file>icons2/undo.png</file>
+        <file>icons2/close_file.svg</file>
+        <file>icons2/Save.png</file>
+        <file>icons2/Quit.png</file>
+        <file>icons2/save_as.png</file>
+    </qresource>
+</RCC>
