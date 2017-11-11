@@ -2,18 +2,25 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QString>
+#include <QTextDocument>
+#include <QList>
 
 namespace Ui
 {
     class MainWindow;
 }
 
-struct File
+//typedef FileData FileData;
+struct FileData
 {
-    int id;
-    QString fileName;
+    QString fullPath;
     QString text;
+    bool isSaved;
 };
+
+class QLabel;
+class QComboBox;
 
 class MainWindow : public QMainWindow
 {
@@ -22,6 +29,13 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+
+private:
+    Ui::MainWindow *ui;
+    QLabel *mLblTexyInfo;
+    QComboBox *mFileSelector;
+    QList<FileData> mFilesData;
+    int mCurrentFileIndex{0};
 
 private slots:
     void on_action_about_program_triggered();
@@ -45,8 +59,20 @@ private slots:
     void on_action_previous_search_result_triggered();
     void on_action_undo_triggered();
     void on_action_redo_triggered();
-private:
-    Ui::MainWindow *ui;
+    void on_action_save_as_triggered();
+    void on_action_text_properties_triggered();
+    void on_actionExport_to_pdf_triggered();
+    void on_action_save_all_files_triggered();
+    void on_action_close_all_files_triggered();
+    void update_cursor_info();
+    void update_file_view(int index);
+    bool open_file(const QString &path);
+    bool save_file(int index);
+    void close_file(int index);
+    void syncronize_combobox_and_file_list();
+
+    void on_actionAdd_tab_triggered();
+    void on_tabWidget_tabCloseRequested(int index);
 };
 
 #endif // MAINWINDOW_H

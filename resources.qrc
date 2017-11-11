@@ -28,5 +28,9 @@
         <file>icons2/Save.png</file>
         <file>icons2/Quit.png</file>
         <file>icons2/save_as.png</file>
+        <file>icons2/text_properties.png</file>
+        <file>icons2/export_to_pdf.png</file>
+        <file>icons2/close_all_files.png</file>
+        <file>icons2/save_all_files.png</file>
     </qresource>
 </RCC>

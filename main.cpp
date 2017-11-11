@@ -1,5 +1,8 @@
 #include "mainwindow.h"
 #include <QApplication>
+#include <QString>
+#include <QTextDocument>
+#include <iostream>
 
 int main(int argc, char *argv[])
 {
