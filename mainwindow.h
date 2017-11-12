@@ -11,16 +11,8 @@ namespace Ui
     class MainWindow;
 }
 
-//typedef FileData FileData;
-struct FileData
-{
-    QString fullPath;
-    QString text;
-    bool isSaved;
-};
-
 class QLabel;
-class QComboBox;
+class QTextEdit;
 
 class MainWindow : public QMainWindow
 {
@@ -29,15 +21,13 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
-
 private:
     Ui::MainWindow *ui;
     QLabel *mLblTexyInfo;
-    QComboBox *mFileSelector;
-    QList<FileData> mFilesData;
-    int mCurrentFileIndex{0};
+    QList<QTextEdit*> mListOfTextEdits;
 
 private slots:
+    void mark_unsaved_test_changes_on_tab();
     void on_action_about_program_triggered();
     void on_action_about_Qt_triggered();
     void on_action_open_triggered();
@@ -65,13 +55,11 @@ private slots:
     void on_action_save_all_files_triggered();
     void on_action_close_all_files_triggered();
     void update_cursor_info();
-    void update_file_view(int index);
-    bool open_file(const QString &path);
+    void create_new_tab(const QString &title, const QString &pathToFile = QString(),
+                        const QString &text = QString());
     bool save_file(int index);
-    void close_file(int index);
-    void syncronize_combobox_and_file_list();
-
-    void on_actionAdd_tab_triggered();
+    bool save_file_as(int index);
+    bool save_text_to_file(const QString &filePath, const QString &text);
     void on_tabWidget_tabCloseRequested(int index);
 };
 

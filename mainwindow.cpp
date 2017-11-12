@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QDir>
+#include <QTextEdit>
 #include <QTextStream>
 #include <QFontDialog>
 #include <QPalette>
@@ -27,44 +28,24 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
     this->setWindowTitle("TeSimpleNotepad");
-    ui->textArea->setContextMenuPolicy(Qt::ContextMenuPolicy::ActionsContextMenu);
-    ui->textArea->addAction(ui->action_copy);
-    ui->textArea->addAction(ui->action_cut);
-    ui->textArea->addAction(ui->action_paste);
-    ui->textArea->addAction(ui->action_select_all);
-    ui->textArea->addAction(ui->action_find);
-    ui->textArea->addAction(ui->action_find_and_replace);
-    ui->textArea->addAction(ui->action_next_search_result);
-    ui->textArea->addAction(ui->action_previous_search_result);
-    ui->textArea->document()->setDefaultFont(QFont("times", 14));
     QLabel *label = new QLabel(QString("Opened files"), this);
     ui->statusBar->addPermanentWidget(label);
-    mFileSelector = new QComboBox(this);
-    mFileSelector->setMinimumWidth(500);
-
-    //QStringList list;
-    //list << "First" << "Second" << "Third";
-    //mFileSelector->addItems(list);
-    ui->statusBar->addPermanentWidget(mFileSelector);
-
     mLblTexyInfo = new QLabel(this);
     ui->statusBar->addPermanentWidget(mLblTexyInfo);
-    connect(ui->textArea, &QTextEdit::cursorPositionChanged, this,
-            &MainWindow::update_cursor_info);
-
-    connect(ui->textArea, &QTextEdit::textChanged, [this](){
-        mFilesData[mCurrentFileIndex].isSaved = false;
-    });
-
-    auto signal = static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged);
-    connect(mFileSelector, signal, this, &MainWindow::update_file_view);
-
-    ui->tabWidget->setTabsClosable(true);
+    ui->tabWidget->setTabsClosable(true);    
 }
 
 MainWindow::~MainWindow()
 {
     delete ui;
+}
+
+void MainWindow::mark_unsaved_test_changes_on_tab()
+{
+    QTextEdit* sender = static_cast<QTextEdit*>(QObject::sender());
+    auto index = ui->tabWidget->indexOf(sender->parentWidget());
+    if(index == -1) return;
+    ui->tabWidget->tabBar()->setTabTextColor(index, Qt::red);
 }
 
 void MainWindow::on_action_about_program_triggered()
@@ -89,16 +70,32 @@ void MainWindow::on_action_open_triggered()
     auto listOfFiles = QFileDialog::getOpenFileNames(this, "Choose text files", startLocation,
                                                      filter);
     for(const auto &path: listOfFiles)
-        open_file(path);
+    {
+        QFile file(path);
+        file.open(QIODevice::ReadOnly | QIODevice::Text);
+        if(!file.isOpen())
+            continue;
+        QTextStream stream(&file);
+        QString text = stream.readAll();
+        QFileInfo fileInfo(file);
+        create_new_tab(fileInfo.fileName(), path, text);
+        file.flush();
+        file.close();
+    }
 }
 
 void MainWindow::on_action_save_triggered()
 {
-    this->save_file(mCurrentFileIndex);
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
+    this->save_file(index);
 }
 
 void MainWindow::on_action_save_as_triggered()
 {
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
+
     QFileDialog dialog(this);
     dialog.setAcceptMode(QFileDialog::AcceptSave);
     dialog.setFileMode(QFileDialog::AnyFile);
@@ -109,17 +106,23 @@ void MainWindow::on_action_save_as_triggered()
         if (file.isOpen())
         {
             QTextStream stream(&file);
-            stream << ui->textArea->toPlainText();
+            stream << mListOfTextEdits.at(index)->toPlainText();
+            QFileInfo fileInfo(file);
+            ui->tabWidget->setTabText(index, fileInfo.fileName());
+            ui->tabWidget->setTabToolTip(index, filePath);
             file.flush();
             file.close();
-        }
+        }           
     }
 }
 
 void MainWindow::update_cursor_info()
 {
-    QTextCursor cursor = ui->textArea->textCursor();
-    auto cursorColumn = ui->textArea->textCursor().columnNumber();
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
+
+    QTextCursor cursor = mListOfTextEdits.at(index)->textCursor();
+    auto cursorColumn = cursor.columnNumber();
     cursor.movePosition(QTextCursor::StartOfLine);
     auto cursorLine = 0u;
     while(cursor.positionInBlock() > 0)
@@ -141,45 +144,102 @@ void MainWindow::update_cursor_info()
     this->mLblTexyInfo->setText(text);
 }
 
-void MainWindow::update_file_view(int index)
+void MainWindow::create_new_tab(const QString &title, const QString &pathToFile,
+                                const QString &text)
 {
-    qDebug() << "index = " << index;
-    if(index >= 0 && index < mFilesData.size())
-    {
-        mFilesData[mCurrentFileIndex].text = ui->textArea->toPlainText();
-        mCurrentFileIndex = index;
-        auto data = mFilesData.at(mCurrentFileIndex);
-        QString text = data.text;
-        ui->textArea->setText(text);
-    }
-}
+    QWidget *widget = new QWidget(ui->tabWidget);
+    QTextEdit *textEdit = new QTextEdit(widget);
 
-bool MainWindow::open_file(const QString &path)
-{
-    QFile file(path);
-    file.open(QIODevice::ReadOnly | QIODevice::Text);
-    if(!file.isOpen())
-        return false;
-    QTextStream stream(&file);
-    QString text = stream.readAll();
-    FileData data{path, text, true};
-    mFilesData.append(data);
-    file.flush();
-    file.close();
-    syncronize_combobox_and_file_list();
-    return true;
+    textEdit->document()->setDefaultFont(QFont("times", 14));
+    textEdit->setText(text);
+    textEdit->setContextMenuPolicy(Qt::ContextMenuPolicy::ActionsContextMenu);
+    textEdit->addAction(ui->action_copy);
+    textEdit->addAction(ui->action_cut);
+    textEdit->addAction(ui->action_paste);
+    textEdit->addAction(ui->action_select_all);
+    textEdit->addAction(ui->action_clear_Selection);
+    textEdit->addAction(ui->action_save);
+    textEdit->addAction(ui->actionExport_to_pdf);
+    textEdit->addAction(ui->action_save_all_files);
+    textEdit->addAction(ui->action_close);
+    textEdit->addAction(ui->action_close_all_files);
+    textEdit->addAction(ui->action_text_properties);
+    connect(textEdit, &QTextEdit::cursorPositionChanged,
+            this, &MainWindow::update_cursor_info);
+    connect(textEdit, &QTextEdit::textChanged, this,
+            &MainWindow::mark_unsaved_test_changes_on_tab);
+     mListOfTextEdits.append(textEdit);
+    QVBoxLayout *l = new QVBoxLayout(widget);
+    l->addWidget(textEdit);
+    widget->setLayout(l);
+    ui->tabWidget->addTab(widget, title);
+    auto index = ui->tabWidget->indexOf(widget);
+    ui->tabWidget->setTabToolTip(index, pathToFile);
+    if(title.contains(QRegExp("Untitled")))
+        ui->tabWidget->tabBar()->setTabTextColor(index, Qt::red);
 }
 
 bool MainWindow::save_file(int index)
 {
-    if(index >= 0 && index < mFilesData.size())
+    if(index == -1) return false;
+    QString tapCaption = ui->tabWidget->tabText(index);
+    if(tapCaption.contains(QRegExp("(Untitled)")))
     {
-        auto path = mFilesData.at(index).fullPath;
-        QFile file(path);
-        if(!file.open(QIODevice::WriteOnly | QIODevice::Text))
-            return false;
+        if(save_file_as(index))
+        {
+            ui->tabWidget->tabBar()->setTabTextColor(index, Qt::black);
+            return true;
+        }
+    }
+    else
+    {
+        auto path = ui->tabWidget->tabToolTip(index);
+        auto text = mListOfTextEdits.at(index)->toPlainText();
+        if(save_text_to_file(path, text))
+        {
+            ui->tabWidget->tabBar()->setTabTextColor(index, Qt::black);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool MainWindow::save_file_as(int index)
+{
+    if(index == -1) return false;
+
+    QFileDialog dialog(this);
+    dialog.setAcceptMode(QFileDialog::AcceptSave);
+    dialog.setFileMode(QFileDialog::AnyFile);
+   // dialog.setFilter("Text documents (*.txt);;All files (*.*));");
+    dialog.setWindowTitle(QString("Specify path for ") + ui->tabWidget->tabText(index));
+    if (dialog.exec() == QDialog::Accepted) {
+        const QString filePath = dialog.selectedFiles().first();
+        QFile file(filePath);
+        file.open(QIODevice::WriteOnly | QIODevice::Text);
+        if (file.isOpen())
+        {
+            QTextStream stream(&file);
+            stream << mListOfTextEdits.at(index)->toPlainText();
+            QFileInfo fileInfo(file);
+            ui->tabWidget->setTabText(index, fileInfo.fileName());
+            ui->tabWidget->setTabToolTip(index, filePath);
+            file.flush();
+            file.close();
+            return true;
+        }
+    }
+    return false;
+}
+
+bool MainWindow::save_text_to_file(const QString &filePath, const QString &text)
+{
+    QFile file(filePath);
+    file.open(QIODevice::WriteOnly | QIODevice::Text);
+    if (file.isOpen())
+    {
         QTextStream stream(&file);
-        stream << ui->textArea->toPlainText();
+        stream << text;
         file.flush();
         file.close();
         return true;
@@ -187,42 +247,12 @@ bool MainWindow::save_file(int index)
     return false;
 }
 
-void MainWindow::close_file(int index)
-{
-    if(index >= 0 && index < mFilesData.size())
-    {
-        if(!mFilesData.at(index).isSaved)
-        {
-            auto answer = QMessageBox::question(this, "Save file?", "Would you like"
-                                                " to save current file?",
-                                                QMessageBox::Yes | QMessageBox::No);
-            if(answer == QMessageBox::Yes)
-            {
-                this->save_file(index);
-            }
-        }
-        //numOfFiles = mFilesData.size();
-        mFilesData.removeAt(index);
-        syncronize_combobox_and_file_list();
-        if(mFileSelector->count() > 0)
-            mFileSelector->setCurrentIndex(mFileSelector->count() - 1);
-    }
-}
-
-void MainWindow::syncronize_combobox_and_file_list()
-{
-    mFileSelector->clear();
-    for(const auto &data: mFilesData)
-    {
-        mFileSelector->addItem(data.fullPath);
-    }
-    if(mFileSelector->count() > 0)
-        mFileSelector->setCurrentIndex(mFileSelector->count() - 1);
-}
-
 void MainWindow::on_action_close_triggered()
 {
-    close_file(mFileSelector->currentIndex());
+    qDebug() << "On action close triggered";
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
+    on_tabWidget_tabCloseRequested(index);
 }
 
 void MainWindow::on_action_quit_triggered()
@@ -236,72 +266,79 @@ void MainWindow::on_action_quit_triggered()
 
 void MainWindow::on_action_copy_triggered()
 {
-    ui->textArea->copy();
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
+    mListOfTextEdits.at(index)->copy();
 }
 
 void MainWindow::on_action_cut_triggered()
 {
-    ui->textArea->cut();
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
+    mListOfTextEdits.at(index)->cut();
 }
 
 void MainWindow::on_action_paste_triggered()
 {
-    ui->textArea->paste();
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
+    mListOfTextEdits.at(index)->paste();
 }
 
 void MainWindow::on_action_select_all_triggered()
 {
-    ui->textArea->selectAll();
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
+    mListOfTextEdits.at(index)->selectAll();
 }
 
 void MainWindow::on_action_clear_Selection_triggered()
 {
-    QTextCursor c = ui->textArea->textCursor();
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
+    QTextCursor c = mListOfTextEdits.at(index)->textCursor();
     c.setPosition(0);
     c.setPosition(0, QTextCursor::KeepAnchor);
-    ui->textArea->setTextCursor(c);
+    mListOfTextEdits.at(index)->setTextCursor(c);
 }
 
 void MainWindow::on_action_new_file_triggered()
 {
-    QFileDialog dialog(this);
-    dialog.setAcceptMode(QFileDialog::AcceptSave);
-    dialog.setFileMode(QFileDialog::AnyFile);
-    if (dialog.exec() == QDialog::Accepted)
-    {
-        auto filePath = dialog.selectedFiles().first();
-        open_file(filePath);
-    }
+    static int counter = 0;
+    create_new_tab(QString("Untitled%1").arg(++counter));
 }
 
 void MainWindow::on_action_choose_font_triggered()
 {
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
     bool ok { true };
     QFont font = QFontDialog::getFont(&ok, QFont("times", 14), this,
                                       QString("Choose a font for text"));
-    if(ok)
-    {
-        ui->textArea->setCurrentFont(font);
-    }
+    if(ok) mListOfTextEdits.at(index)->setCurrentFont(font);
 }
 
 void MainWindow::on_action_choose_font_color_triggered()
 {
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
     QColorDialog dialog(Qt::black, this);
     if(dialog.exec() == QDialog::Accepted)
     {
-        ui->textArea->setTextColor(dialog.selectedColor());
+        mListOfTextEdits.at(index)->setTextColor(dialog.selectedColor());
     }
 }
 
 void MainWindow::on_action_choose_background_color_triggered()
 {
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
     QColorDialog dialog(Qt::white, this);
     if(dialog.exec() == QDialog::Accepted)
     {
         QPalette pal;
-        pal.setColor(QPalette::Base, dialog.selectedColor());
-        ui->textArea->setPalette(pal);
+        pal.setColor(QPalette::Base, dialog.selectedColor());        
+        mListOfTextEdits.at(index)->setPalette(pal);
     }
 }
 
@@ -328,27 +365,37 @@ void MainWindow::on_action_previous_search_result_triggered()
 
 void MainWindow::on_action_undo_triggered()
 {
-    ui->textArea->undo();
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
+    mListOfTextEdits.at(index)->undo();
 }
 
 void MainWindow::on_action_redo_triggered()
 {
-    ui->textArea->redo();
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
+    mListOfTextEdits.at(index)->redo();
 }
 
 void MainWindow::on_action_text_properties_triggered()
 {
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
+    auto currTextEdit = mListOfTextEdits.at(index);
+
     //Whole text
-    auto lineCount = ui->textArea->document()->lineCount();
-    auto wordCount = ui->textArea->toPlainText()
+
+    auto lineCount = currTextEdit->document()->lineCount();
+    auto wordCount = currTextEdit->toPlainText()
             .split(QRegExp("(\\s|\\n|\\r)+"), QString::SkipEmptyParts).count();
-    auto characterCount = ui->textArea->document()->characterCount();
-    auto specialSymbolsCount = ui->textArea->toPlainText()
+    auto characterCount = currTextEdit->document()->characterCount();
+    auto specialSymbolsCount = currTextEdit->toPlainText()
             .count(QRegExp("(\\s|\\n|\\r|\\t)"));
 
-    QTextCursor cursor = ui->textArea->textCursor();
+    QTextCursor cursor = currTextEdit->textCursor();
 
     //Selected text
+
     auto selectedText = cursor.selectedText();
     auto selectedTextWordCount = selectedText.split(QRegExp("(\\s|\\n|\\r)+"),
                                         QString::SkipEmptyParts).count();
@@ -373,54 +420,51 @@ void MainWindow::on_action_text_properties_triggered()
 
 void MainWindow::on_actionExport_to_pdf_triggered()
 {
-
-    /////////////PDF//////////////////
-
-
-    /*
-     * Exporting a document to PDF
-    Found it very easy to convert a QTextDocument to PDF in Qt. And useful in scenarios like creating reports etc.
-
-    For example, Consider the following snippet,
-
-           QString fileName = QFileDialog::getSaveFileName(this, tr("Save File"),
-        "untitled",tr("PDF Document (*.pdf)"));
-        QPrinter printer;
-        printer.setOutputFormat(QPrinter::PdfFormat);
-        printer.setOutputFileName(fileName);
-        doc->print(&printer); // doc is QTextDocument *
-    We can use the printer class to print the document to a file : a pdf file.
-
-    */
+    auto index = ui->tabWidget->currentIndex();
+    if(index == -1) return;
+    QString startLocation = QStandardPaths::standardLocations(
+                            QStandardPaths::DocumentsLocation)
+                            .value(0, QDir::homePath());
+    QString filter = QString::fromStdString("PDF documents (*.pdf);;"
+                                            "All files (*.*)");
+    QString fileName = QFileDialog::getSaveFileName(this, "Choose a file path", startLocation,
+                                                    filter);
+    QPrinter printer;
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(fileName);
+    mListOfTextEdits.at(index)->document()->print(&printer);
 }
 
 void MainWindow::on_action_save_all_files_triggered()
 {
-    for(size_t i{0u}; i < mFilesData.size(); ++i)
+    for(size_t i{0u}; i < ui->tabWidget->count(); ++i)
         this->save_file(i);
 }
 
 void MainWindow::on_action_close_all_files_triggered()
 {
-    for(size_t i{0u}; i < mFilesData.size(); ++i)
-        this->close_file(i);
-    ui->textArea->setText("");
-    mFileSelector->clear();
-}
-
-void MainWindow::on_actionAdd_tab_triggered()
-{
-    static int counter = 0;
-    QWidget *widget = new QWidget(this);
-    QTextEdit *textEdit = new QTextEdit(widget);
-    QVBoxLayout *l = new QVBoxLayout(widget);
-    l->addWidget(textEdit);
-    widget->setLayout(l);
-    ui->tabWidget->addTab(widget, QString("New tab %1").arg(++counter));
+    while(ui->tabWidget->count())
+        on_tabWidget_tabCloseRequested(ui->tabWidget->count() - 1);
 }
 
 /// Tab close event
 void MainWindow::on_tabWidget_tabCloseRequested(int index)
 {
+    if(index == -1) return;
+    auto color = ui->tabWidget->tabBar()->tabTextColor(index);
+    if(color == Qt::red)
+    {
+        auto answer = QMessageBox::question(this, "Save file?", "Would you like"
+                                            " to save current file?",
+                                            QMessageBox::Yes | QMessageBox::No);
+        if(answer == QMessageBox::Yes)
+        {
+            this->save_file(index);
+        }
+    }
 
+    QWidget *widget = ui->tabWidget->widget(index);
+    ui->tabWidget->removeTab(index);
+    delete widget;
+    mListOfTextEdits.removeAt(index);
 }

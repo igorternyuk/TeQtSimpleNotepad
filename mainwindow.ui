@@ -20,35 +20,18 @@
    <string>MainWindow</string>
   </property>
   <widget class="QWidget" name="centralWidget">
-   <widget class="QTextEdit" name="textArea">
-    <property name="geometry">
-     <rect>
-      <x>430</x>
-      <y>20</y>
-      <width>256</width>
-      <height>192</height>
-     </rect>
-    </property>
-    <property name="cursorWidth">
-     <number>1</number>
-    </property>
-   </widget>
-   <widget class="QTabWidget" name="tabWidget">
-    <property name="geometry">
-     <rect>
-      <x>10</x>
-      <y>10</y>
-      <width>391</width>
-      <height>281</height>
-     </rect>
-    </property>
-    <property name="currentIndex">
-     <number>-1</number>
-    </property>
-    <property name="tabsClosable">
-     <bool>true</bool>
-    </property>
-   </widget>
+   <layout class="QGridLayout" name="gridLayout">
+    <item row="0" column="0">
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="currentIndex">
+       <number>-1</number>
+      </property>
+      <property name="tabsClosable">
+       <bool>true</bool>
+      </property>
+     </widget>
+    </item>
+   </layout>
   </widget>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">
@@ -72,7 +55,6 @@
     <addaction name="action_close"/>
     <addaction name="action_close_all_files"/>
     <addaction name="action_quit"/>
-    <addaction name="actionAdd_tab"/>
    </widget>
    <widget class="QMenu" name="menuEdit">
     <property name="title">
@@ -431,11 +413,6 @@
    </property>
    <property name="text">
     <string>Close all files</string>
-   </property>
-  </action>
-  <action name="actionAdd_tab">
-   <property name="text">
-    <string>Add tab</string>
    </property>
   </action>
  </widget>
