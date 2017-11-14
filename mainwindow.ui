@@ -72,7 +72,6 @@
     <property name="title">
      <string>Search</string>
     </property>
-    <addaction name="action_find"/>
     <addaction name="action_find_and_replace"/>
     <addaction name="action_next_search_result"/>
     <addaction name="action_previous_search_result"/>
@@ -119,7 +118,6 @@
    <addaction name="action_undo"/>
    <addaction name="action_redo"/>
    <addaction name="separator"/>
-   <addaction name="action_find"/>
    <addaction name="action_find_and_replace"/>
    <addaction name="action_previous_search_result"/>
    <addaction name="action_next_search_result"/>
@@ -298,19 +296,10 @@
     <string>Choose background color</string>
    </property>
   </action>
-  <action name="action_find">
-   <property name="icon">
-    <iconset resource="resources.qrc">
-     <normaloff>:/img/icons2/search.png</normaloff>:/img/icons2/search.png</iconset>
-   </property>
-   <property name="text">
-    <string>Find</string>
-   </property>
-  </action>
   <action name="action_find_and_replace">
    <property name="icon">
     <iconset resource="resources.qrc">
-     <normaloff>:/img/icons2/replace.png</normaloff>:/img/icons2/replace.png</iconset>
+     <normaloff>:/img/icons2/search.png</normaloff>:/img/icons2/search.png</iconset>
    </property>
    <property name="text">
     <string>Find and replace</string>

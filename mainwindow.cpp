@@ -20,7 +20,9 @@
 #include <QComboBox>
 #include <QPrinter>
 #include <QVBoxLayout>
+#include <QSettings>
 #include <QDebug>
+#include "findreplacedialog.h"
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -32,12 +34,25 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->statusBar->addPermanentWidget(label);
     mLblTexyInfo = new QLabel(this);
     ui->statusBar->addPermanentWidget(mLblTexyInfo);
-    ui->tabWidget->setTabsClosable(true);    
-}
+    ui->tabWidget->setTabsClosable(true);
+    mFindReplaceDialog = new FindReplaceDialog(this);
+    connect(ui->tabWidget, &QTabWidget::currentChanged, [this](auto index){
+        if(index == -1) return;
+        mFindReplaceDialog->setTextEdit(mListOfTextEdits.at(index));
+    });
+    load_settings();}
 
 MainWindow::~MainWindow()
 {
+    save_settings();
     delete ui;
+}
+
+void MainWindow::closeEvent(QCloseEvent *)
+{
+
+
+    QMainWindow::close();
 }
 
 void MainWindow::mark_unsaved_test_changes_on_tab()
@@ -144,7 +159,7 @@ void MainWindow::update_cursor_info()
     this->mLblTexyInfo->setText(text);
 }
 
-void MainWindow::create_new_tab(const QString &title, const QString &pathToFile,
+int MainWindow::create_new_tab(const QString &title, const QString &pathToFile,
                                 const QString &text)
 {
     QWidget *widget = new QWidget(ui->tabWidget);
@@ -177,6 +192,32 @@ void MainWindow::create_new_tab(const QString &title, const QString &pathToFile,
     ui->tabWidget->setTabToolTip(index, pathToFile);
     if(title.contains(QRegExp("Untitled")))
         ui->tabWidget->tabBar()->setTabTextColor(index, Qt::red);
+    ui->tabWidget->setCurrentIndex(index);
+    return index;
+}
+
+bool MainWindow::open_files(const QStringList &listOfFiles)
+{
+    bool isAtLeastOneFile { false };
+    for(const auto &path: listOfFiles)
+        if(open_file(path))
+            isAtLeastOneFile = true;
+    return isAtLeastOneFile;
+}
+
+bool MainWindow::open_file(const QString &path)
+{
+    QFile file(path);
+    file.open(QIODevice::ReadOnly | QIODevice::Text);
+    if(!file.isOpen())
+        return false;
+    QTextStream stream(&file);
+    QString text = stream.readAll();
+    QFileInfo fileInfo(file);
+    create_new_tab(fileInfo.fileName(), path, text);
+    file.flush();
+    file.close();
+    return true;
 }
 
 bool MainWindow::save_file(int index)
@@ -261,7 +302,9 @@ void MainWindow::on_action_quit_triggered()
                                        "Do you really want to quit application?",
                                        QMessageBox::Yes | QMessageBox::No);
     if(reply == QMessageBox::Yes)
+    {
         this->close();
+    }
 }
 
 void MainWindow::on_action_copy_triggered()
@@ -342,26 +385,23 @@ void MainWindow::on_action_choose_background_color_triggered()
     }
 }
 
-void MainWindow::on_action_find_triggered()
-{
-
-}
-
 void MainWindow::on_action_find_and_replace_triggered()
 {
-
+    if(this->mFindReplaceDialog->isHidden())
+        this->mFindReplaceDialog->show();
+    else
+        this->mFindReplaceDialog->hide();
 }
 
 void MainWindow::on_action_next_search_result_triggered()
 {
-
+    mFindReplaceDialog->findNext();
 }
 
 void MainWindow::on_action_previous_search_result_triggered()
 {
-
+    mFindReplaceDialog->findPrev();
 }
-
 
 void MainWindow::on_action_undo_triggered()
 {
@@ -427,7 +467,8 @@ void MainWindow::on_actionExport_to_pdf_triggered()
                             .value(0, QDir::homePath());
     QString filter = QString::fromStdString("PDF documents (*.pdf);;"
                                             "All files (*.*)");
-    QString fileName = QFileDialog::getSaveFileName(this, "Choose a file path", startLocation,
+    QString fileName = QFileDialog::getSaveFileName(this, "Choose a file path",
+                                                    startLocation,
                                                     filter);
     QPrinter printer;
     printer.setOutputFormat(QPrinter::PdfFormat);
@@ -437,7 +478,7 @@ void MainWindow::on_actionExport_to_pdf_triggered()
 
 void MainWindow::on_action_save_all_files_triggered()
 {
-    for(size_t i{0u}; i < ui->tabWidget->count(); ++i)
+    for(int i{0}; i < ui->tabWidget->count(); ++i)
         this->save_file(i);
 }
 
@@ -454,7 +495,8 @@ void MainWindow::on_tabWidget_tabCloseRequested(int index)
     auto color = ui->tabWidget->tabBar()->tabTextColor(index);
     if(color == Qt::red)
     {
-        auto answer = QMessageBox::question(this, "Save file?", "Would you like"
+        auto answer = QMessageBox::question(this, "Save file?",
+                                            "Would you like"
                                             " to save current file?",
                                             QMessageBox::Yes | QMessageBox::No);
         if(answer == QMessageBox::Yes)
@@ -468,3 +510,77 @@ void MainWindow::on_tabWidget_tabCloseRequested(int index)
     delete widget;
     mListOfTextEdits.removeAt(index);
 }
+
+void MainWindow::save_all_current_session_files()
+{
+    QFile file(SESSION_FILE_PATH);
+    file.open(QIODevice::WriteOnly);
+    if (file.isOpen())
+    {
+        QTextStream stream(&file);
+        for(int i = 0; i < ui->tabWidget->count(); ++i)
+        {
+            auto path = ui->tabWidget->toolTip();
+            if(path.isEmpty())
+            {
+                path = QString("%1").arg(ui->tabWidget->tabText(i));
+                auto text = mListOfTextEdits.at(i)->toPlainText();
+                save_text_to_file(path, text);
+            }
+            else
+            {
+                save_file(i);
+            }
+            stream << path;
+            if(i != ui->tabWidget->count() - 1)
+                stream << "*";
+        }
+        file.flush();
+        file.close();
+    }
+}
+
+void MainWindow::load_all_last_session_files()
+{
+    QFile file(SESSION_FILE_PATH);
+    file.open(QIODevice::ReadOnly | QIODevice::Text);
+    if(file.isOpen())
+    {
+        QTextStream stream(&file);
+        auto listOfFiles = stream.readAll().split("*");
+        if(!open_files(listOfFiles))
+            on_action_new_file_triggered();
+        file.flush();
+        file.close();
+    }
+}
+
+void MainWindow::load_settings()
+{
+    load_all_last_session_files();
+    auto size = loadParameter(mKeys[SettingsKey::WINDOW_SIZE],
+                              mSettingsGroup,
+                              this->size()).value<QSize>();
+    this->resize(size);
+    auto pos = loadParameter(mKeys[SettingsKey::WINDOW_POS],
+                             mSettingsGroup,
+                             this->size()).value<QPoint>();
+    this->move(pos);
+    bool ok { false };
+    auto curr_tab = loadParameter(mKeys[SettingsKey::CURRENT_TAB],
+                                  mSettingsGroup,
+                                  0).toInt(&ok);
+    if(ok) ui->tabWidget->setCurrentIndex(curr_tab);
+}
+
+void MainWindow::save_settings()
+{
+    save_all_current_session_files();
+    saveParameter(mKeys[SettingsKey::WINDOW_SIZE], this->size(),
+            mSettingsGroup);
+    saveParameter(mKeys[SettingsKey::WINDOW_POS], this->pos(),
+            mSettingsGroup);
+    saveParameter(mKeys[SettingsKey::CURRENT_TAB],
+                  ui->tabWidget->currentIndex(), mSettingsGroup);
+}
+

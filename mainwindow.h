@@ -5,6 +5,8 @@
 #include <QString>
 #include <QTextDocument>
 #include <QList>
+#include <QMap>
+#include "settingsuntil.h"
 
 namespace Ui
 {
@@ -13,6 +15,7 @@ namespace Ui
 
 class QLabel;
 class QTextEdit;
+class FindReplaceDialog;
 
 class MainWindow : public QMainWindow
 {
@@ -21,10 +24,34 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
+
 private:
     Ui::MainWindow *ui;
     QLabel *mLblTexyInfo;
     QList<QTextEdit*> mListOfTextEdits;
+    FindReplaceDialog *mFindReplaceDialog;
+    const QString SESSION_FILE_PATH { "lastSession.dat" };
+
+    enum class SettingsKey
+    {
+        WINDOW_SIZE,
+        WINDOW_POS,
+        CURRENT_TAB
+    };
+
+    QMap<SettingsKey, QString> mKeys
+    {
+        { SettingsKey::WINDOW_SIZE, "WindowSize" },
+        { SettingsKey::WINDOW_POS, "WindowPos" },
+        { SettingsKey::CURRENT_TAB, "Current tab" }
+    };
+
+    const QString mSettingsGroup { "MainWindow" };
+    const QString mWindowSizeKey { "size" };
+    const QString mWindowPosKey { "pos" };
+
+protected:
+    void closeEvent(QCloseEvent*) override;
 
 private slots:
     void mark_unsaved_test_changes_on_tab();
@@ -43,7 +70,6 @@ private slots:
     void on_action_choose_font_triggered();
     void on_action_choose_font_color_triggered();
     void on_action_choose_background_color_triggered();
-    void on_action_find_triggered();
     void on_action_find_and_replace_triggered();
     void on_action_next_search_result_triggered();
     void on_action_previous_search_result_triggered();
@@ -55,12 +81,20 @@ private slots:
     void on_action_save_all_files_triggered();
     void on_action_close_all_files_triggered();
     void update_cursor_info();
-    void create_new_tab(const QString &title, const QString &pathToFile = QString(),
+    int create_new_tab(const QString &title, const QString &pathToFile = QString(),
                         const QString &text = QString());
+    bool open_files(const QStringList &listOfFiles);
+    bool open_file(const QString &path);
     bool save_file(int index);
     bool save_file_as(int index);
     bool save_text_to_file(const QString &filePath, const QString &text);
     void on_tabWidget_tabCloseRequested(int index);
+    void save_all_current_session_files();
+    void load_all_last_session_files();
+    void load_settings();
+    void save_settings();
 };
+
+
 
 #endif // MAINWINDOW_H
