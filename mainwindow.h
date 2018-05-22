@@ -25,36 +25,12 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-private:
-    Ui::MainWindow *ui;
-    QLabel *mLblTexyInfo;
-    QList<QTextEdit*> mListOfTextEdits;
-    FindReplaceDialog *mFindReplaceDialog;
-    const QString SESSION_FILE_PATH { "lastSession.dat" };
-
-    enum class SettingsKey
-    {
-        WINDOW_SIZE,
-        WINDOW_POS,
-        CURRENT_TAB
-    };
-
-    QMap<SettingsKey, QString> mKeys
-    {
-        { SettingsKey::WINDOW_SIZE, "WindowSize" },
-        { SettingsKey::WINDOW_POS, "WindowPos" },
-        { SettingsKey::CURRENT_TAB, "Current tab" }
-    };
-
-    const QString mSettingsGroup { "MainWindow" };
-    const QString mWindowSizeKey { "size" };
-    const QString mWindowPosKey { "pos" };
 
 protected:
     void closeEvent(QCloseEvent*) override;
 
 private slots:
-    void mark_unsaved_test_changes_on_tab();
+    void mark_unsaved_text_changes_on_tab();
     void on_action_about_program_triggered();
     void on_action_about_Qt_triggered();
     void on_action_open_triggered();
@@ -81,8 +57,9 @@ private slots:
     void on_action_save_all_files_triggered();
     void on_action_close_all_files_triggered();
     void update_cursor_info();
-    int create_new_tab(const QString &title, const QString &pathToFile = QString(),
-                        const QString &text = QString());
+    int create_new_tab(const QString &title,
+                       const QString &pathToFile = QString(),
+                       const QString &text = QString());
     bool open_files(const QStringList &listOfFiles);
     bool open_file(const QString &path);
     bool save_file(int index);
@@ -93,8 +70,45 @@ private slots:
     void load_all_last_session_files();
     void load_settings();
     void save_settings();
+
+private:
+    enum class SettingsKey
+    {
+        WINDOW_SIZE,
+        WINDOW_POS,
+        CURRENT_TAB,
+        UNTITLED_TAB_INDEX_MAX
+    };
+
+    QMap<SettingsKey, QString> mKeys
+    {
+        { SettingsKey::WINDOW_SIZE, "WindowSize" },
+        { SettingsKey::WINDOW_POS, "WindowPos" },
+        { SettingsKey::CURRENT_TAB, "Current tab" },
+        { SettingsKey::UNTITLED_TAB_INDEX_MAX, "UntitledTabIndexMax"}
+    };
+
+    enum class SettingsGroup
+    {
+        MainWindowGeometry,
+        TabWidget
+    };
+
+    QMap<SettingsGroup, QString> mSettingsGroups
+    {
+        { SettingsGroup::MainWindowGeometry, "WindowSize" },
+        { SettingsGroup::MainWindowGeometry, "WindowPos" },
+        { SettingsGroup::TabWidget, "Current tab" },
+        { SettingsGroup::TabWidget, "UntitledTabIndexMax"}
+    };
+
+    const QString SESSION_FILE_PATH { "lastSession.dat" };
+
+    Ui::MainWindow *ui;
+    QLabel *mLblTextInfo;
+    QList<QTextEdit*> mListOfTextEdits;
+    FindReplaceDialog *mFindReplaceDialog;
+    int mUntitledTabIndexMax = 0;
 };
-
-
 
 #endif // MAINWINDOW_H

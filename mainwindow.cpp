@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "findreplacedialog.h"
 #include <QMessageBox>
 #include <QStringList>
 #include <QStandardPaths>
@@ -21,8 +22,9 @@
 #include <QPrinter>
 #include <QVBoxLayout>
 #include <QSettings>
+#ifdef DEBUG
 #include <QDebug>
-#include "findreplacedialog.h"
+#endif
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -32,15 +34,16 @@ MainWindow::MainWindow(QWidget *parent) :
     this->setWindowTitle("TeSimpleNotepad");
     QLabel *label = new QLabel(QString("Opened files"), this);
     ui->statusBar->addPermanentWidget(label);
-    mLblTexyInfo = new QLabel(this);
-    ui->statusBar->addPermanentWidget(mLblTexyInfo);
+    mLblTextInfo = new QLabel(this);
+    ui->statusBar->addPermanentWidget(mLblTextInfo);
     ui->tabWidget->setTabsClosable(true);
     mFindReplaceDialog = new FindReplaceDialog(this);
     connect(ui->tabWidget, &QTabWidget::currentChanged, [this](auto index){
         if(index == -1) return;
         mFindReplaceDialog->setTextEdit(mListOfTextEdits.at(index));
     });
-    load_settings();}
+    load_settings();
+}
 
 MainWindow::~MainWindow()
 {
@@ -50,15 +53,13 @@ MainWindow::~MainWindow()
 
 void MainWindow::closeEvent(QCloseEvent *)
 {
-
-
     QMainWindow::close();
 }
 
-void MainWindow::mark_unsaved_test_changes_on_tab()
+void MainWindow::mark_unsaved_text_changes_on_tab()
 {
     QTextEdit* sender = static_cast<QTextEdit*>(QObject::sender());
-    auto index = ui->tabWidget->indexOf(sender->parentWidget());
+    auto index = ui->tabWidget->indexOf(sender);
     if(index == -1) return;
     ui->tabWidget->tabBar()->setTabTextColor(index, Qt::red);
 }
@@ -82,7 +83,9 @@ void MainWindow::on_action_open_triggered()
                             .value(0, QDir::homePath());
     QString filter = QString::fromStdString("Text documents (*.txt);;"
                                             "All files (*.*)");
-    auto listOfFiles = QFileDialog::getOpenFileNames(this, "Choose text files", startLocation,
+    auto listOfFiles = QFileDialog::getOpenFileNames(this,
+                                                     "Choose text files",
+                                                     startLocation,
                                                      filter);
     for(const auto &path: listOfFiles)
     {
@@ -101,9 +104,10 @@ void MainWindow::on_action_open_triggered()
 
 void MainWindow::on_action_save_triggered()
 {
-    auto index = ui->tabWidget->currentIndex();
-    if(index == -1) return;
-    this->save_file(index);
+    if(!save_file(ui->tabWidget->currentIndex()))
+    {
+        QMessageBox::critical(this, "Error", "Could not save file");
+    }
 }
 
 void MainWindow::on_action_save_as_triggered()
@@ -156,14 +160,13 @@ void MainWindow::update_cursor_info()
     auto text = QString("Cursor: line %4 column %5")
             .arg(cursorLine)
             .arg(cursorColumn);
-    this->mLblTexyInfo->setText(text);
+    this->mLblTextInfo->setText(text);
 }
 
 int MainWindow::create_new_tab(const QString &title, const QString &pathToFile,
                                 const QString &text)
 {
-    QWidget *widget = new QWidget(ui->tabWidget);
-    QTextEdit *textEdit = new QTextEdit(widget);
+    QTextEdit *textEdit = new QTextEdit(ui->tabWidget);
 
     textEdit->document()->setDefaultFont(QFont("times", 14));
     textEdit->setText(text);
@@ -182,17 +185,24 @@ int MainWindow::create_new_tab(const QString &title, const QString &pathToFile,
     connect(textEdit, &QTextEdit::cursorPositionChanged,
             this, &MainWindow::update_cursor_info);
     connect(textEdit, &QTextEdit::textChanged, this,
-            &MainWindow::mark_unsaved_test_changes_on_tab);
-     mListOfTextEdits.append(textEdit);
-    QVBoxLayout *l = new QVBoxLayout(widget);
-    l->addWidget(textEdit);
-    widget->setLayout(l);
-    ui->tabWidget->addTab(widget, title);
-    auto index = ui->tabWidget->indexOf(widget);
+            &MainWindow::mark_unsaved_text_changes_on_tab);
+    mListOfTextEdits.append(textEdit);
+    ui->tabWidget->addTab(textEdit, title);
+    auto index = ui->tabWidget->indexOf(textEdit);
     ui->tabWidget->setTabToolTip(index, pathToFile);
-    if(title.contains(QRegExp("Untitled")))
+
+    if(!pathToFile.contains(QRegExp("(lastSession)")))
+    {
+        ui->tabWidget->setTabToolTip(index, pathToFile);
+    }
+    else
+    {
+        ui->tabWidget->tabBar()->setTabTextColor(index, Qt::red);
+    }
+    if((text.isEmpty() && pathToFile.isEmpty()))
         ui->tabWidget->tabBar()->setTabTextColor(index, Qt::red);
     ui->tabWidget->setCurrentIndex(index);
+
     return index;
 }
 
@@ -214,7 +224,14 @@ bool MainWindow::open_file(const QString &path)
     QTextStream stream(&file);
     QString text = stream.readAll();
     QFileInfo fileInfo(file);
-    create_new_tab(fileInfo.fileName(), path, text);
+    if(path.contains(QRegExp("(lastSession)")))
+    {
+        create_new_tab(fileInfo.fileName(), "", text);
+    }
+    else
+    {
+        create_new_tab(fileInfo.fileName(), path, text);
+    }
     file.flush();
     file.close();
     return true;
@@ -223,8 +240,10 @@ bool MainWindow::open_file(const QString &path)
 bool MainWindow::save_file(int index)
 {
     if(index == -1) return false;
-    QString tapCaption = ui->tabWidget->tabText(index);
-    if(tapCaption.contains(QRegExp("(Untitled)")))
+
+    QString currPath = ui->tabWidget->tabBar()->tabToolTip(index);
+
+    if(currPath.isEmpty())
     {
         if(save_file_as(index))
         {
@@ -234,9 +253,8 @@ bool MainWindow::save_file(int index)
     }
     else
     {
-        auto path = ui->tabWidget->tabToolTip(index);
-        auto text = mListOfTextEdits.at(index)->toPlainText();
-        if(save_text_to_file(path, text))
+        auto currText = mListOfTextEdits.at(index)->toPlainText();
+        if(save_text_to_file(currPath, currText))
         {
             ui->tabWidget->tabBar()->setTabTextColor(index, Qt::black);
             return true;
@@ -253,7 +271,8 @@ bool MainWindow::save_file_as(int index)
     dialog.setAcceptMode(QFileDialog::AcceptSave);
     dialog.setFileMode(QFileDialog::AnyFile);
    // dialog.setFilter("Text documents (*.txt);;All files (*.*));");
-    dialog.setWindowTitle(QString("Specify path for ") + ui->tabWidget->tabText(index));
+    dialog.setWindowTitle(QString("Specify path for ")
+                          + ui->tabWidget->tabText(index));
     if (dialog.exec() == QDialog::Accepted) {
         const QString filePath = dialog.selectedFiles().first();
         QFile file(filePath);
@@ -290,7 +309,6 @@ bool MainWindow::save_text_to_file(const QString &filePath, const QString &text)
 
 void MainWindow::on_action_close_triggered()
 {
-    qDebug() << "On action close triggered";
     auto index = ui->tabWidget->currentIndex();
     if(index == -1) return;
     on_tabWidget_tabCloseRequested(index);
@@ -347,8 +365,7 @@ void MainWindow::on_action_clear_Selection_triggered()
 
 void MainWindow::on_action_new_file_triggered()
 {
-    static int counter = 0;
-    create_new_tab(QString("Untitled%1").arg(++counter));
+    create_new_tab(QString("Untitled%1").arg(++mUntitledTabIndexMax));
 }
 
 void MainWindow::on_action_choose_font_triggered()
@@ -517,23 +534,19 @@ void MainWindow::save_all_current_session_files()
     file.open(QIODevice::WriteOnly);
     if (file.isOpen())
     {
+        if(!QDir(".lastSession").exists())
+            QDir().mkdir(".lastSession");
         QTextStream stream(&file);
         for(int i = 0; i < ui->tabWidget->count(); ++i)
         {
-            auto path = ui->tabWidget->toolTip();
+            auto path = ui->tabWidget->tabBar()->tabToolTip(i);
             if(path.isEmpty())
             {
-                path = QString("%1").arg(ui->tabWidget->tabText(i));
-                auto text = mListOfTextEdits.at(i)->toPlainText();
-                save_text_to_file(path, text);
+                path = QString(".lastSession/%1").arg(ui->tabWidget->tabText(i));
             }
-            else
-            {
-                save_file(i);
-            }
-            stream << path;
-            if(i != ui->tabWidget->count() - 1)
-                stream << "*";
+            auto text = mListOfTextEdits.at(i)->toPlainText();
+            save_text_to_file(path, text);
+            stream << path << "\n";
         }
         file.flush();
         file.close();
@@ -543,15 +556,25 @@ void MainWindow::save_all_current_session_files()
 void MainWindow::load_all_last_session_files()
 {
     QFile file(SESSION_FILE_PATH);
-    file.open(QIODevice::ReadOnly | QIODevice::Text);
-    if(file.isOpen())
+    if(file.open(QIODevice::ReadOnly | QIODevice::Text))
     {
         QTextStream stream(&file);
-        auto listOfFiles = stream.readAll().split("*");
-        if(!open_files(listOfFiles))
+        bool isAtLeastOneFile = false;
+        while(!stream.atEnd())
+        {
+            auto path = stream.readLine();
+            if(!path.isEmpty())
+                isAtLeastOneFile = true;
+            open_file(path);
+        }
+        if(!isAtLeastOneFile)
             on_action_new_file_triggered();
         file.flush();
         file.close();
+    }
+    else
+    {
+        QMessageBox::critical(this, "Error", "Could not restore session");
     }
 }
 
@@ -559,28 +582,40 @@ void MainWindow::load_settings()
 {
     load_all_last_session_files();
     auto size = loadParameter(mKeys[SettingsKey::WINDOW_SIZE],
-                              mSettingsGroup,
+                              mSettingsGroups[SettingsGroup::MainWindowGeometry],
                               this->size()).value<QSize>();
     this->resize(size);
     auto pos = loadParameter(mKeys[SettingsKey::WINDOW_POS],
-                             mSettingsGroup,
-                             this->size()).value<QPoint>();
+                             mSettingsGroups[SettingsGroup::MainWindowGeometry],
+                             this->pos()).value<QPoint>();
     this->move(pos);
     bool ok { false };
     auto curr_tab = loadParameter(mKeys[SettingsKey::CURRENT_TAB],
-                                  mSettingsGroup,
+                                  mSettingsGroups[SettingsGroup::TabWidget],
                                   0).toInt(&ok);
-    if(ok) ui->tabWidget->setCurrentIndex(curr_tab);
+    if(ok)
+        ui->tabWidget->setCurrentIndex(curr_tab);
+    ok = false;
+    auto untitledTabIndexMax = loadParameter(
+            mKeys[SettingsKey::UNTITLED_TAB_INDEX_MAX],
+            mSettingsGroups[SettingsGroup::TabWidget],
+            0).toInt(&ok);
+    if(ok)
+        mUntitledTabIndexMax = untitledTabIndexMax;
 }
 
 void MainWindow::save_settings()
 {
     save_all_current_session_files();
     saveParameter(mKeys[SettingsKey::WINDOW_SIZE], this->size(),
-            mSettingsGroup);
+            mSettingsGroups[SettingsGroup::MainWindowGeometry]);
     saveParameter(mKeys[SettingsKey::WINDOW_POS], this->pos(),
-            mSettingsGroup);
+            mSettingsGroups[SettingsGroup::MainWindowGeometry]);
     saveParameter(mKeys[SettingsKey::CURRENT_TAB],
-                  ui->tabWidget->currentIndex(), mSettingsGroup);
+                  ui->tabWidget->currentIndex(),
+            mSettingsGroups[SettingsGroup::TabWidget]);
+    saveParameter(mKeys[SettingsKey::UNTITLED_TAB_INDEX_MAX],
+                  mUntitledTabIndexMax,
+            mSettingsGroups[SettingsGroup::TabWidget]);
 }
 
