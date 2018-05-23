@@ -65,28 +65,31 @@ void FindReplaceDialog::find(bool down)
         flags |= QTextDocument::FindCaseSensitively;
     if(ui->checkWholeWords->isChecked())
         flags |= QTextDocument::FindWholeWords;
+
+    QTextCursor cursor;
     if(ui->checkRegEx->isChecked())
     {
         QRegExp re(toSearch, ui->checkRegEx->isChecked() ?
                    Qt::CaseSensitive : Qt::CaseInsensitive);
-        mTextCursor = mTextEdit->document()->find(re, mTextCursor, flags);
-        mTextEdit->setTextCursor(mTextCursor);
-        isMatch = !mTextCursor.isNull();
+        cursor = mTextEdit->document()->find(re, mTextCursor, flags);
     }
     else
     {
-        isMatch = mTextEdit->find(toSearch, flags);
+        cursor = mTextEdit->document()->find(toSearch, mTextCursor, flags);
     }
+
+    isMatch = !cursor.isNull();
+
     if(isMatch)
     {
+        mTextEdit->setTextCursor(cursor);
+        mTextCursor = cursor;
         this->showInfo("");
     }
     else
     {
         this->showInfo("No match found", true);
-        mTextEdit->textCursor().setPosition(0);
     }
-
 }
 
 void FindReplaceDialog::findNext()
@@ -124,53 +127,55 @@ void FindReplaceDialog::replaceAll()
     this->showInfo(QString("%1 occurences were replaced").arg(counter));
 }
 
-void FindReplaceDialog::closeEvent(QCloseEvent *)
-{
-    this->hide();
-}
-
 void FindReplaceDialog::writeSettings()
 {
-    saveParameter(mKeys[SettingsKey::TEXT_TO_FIND], ui->txtFind->text(),
-            mSettingsGroup);
-    saveParameter(mKeys[SettingsKey::TEXT_TO_REPLACE], ui->txtReplace->text(),
-            mSettingsGroup);
-    saveParameter(mKeys[SettingsKey::DOWN_RADIO], ui->radioDown->isChecked(),
-            mSettingsGroup);
-    saveParameter(mKeys[SettingsKey::CASE_CHECK], ui->checkCaseSensitive->isChecked(),
-            mSettingsGroup);
-    saveParameter(mKeys[SettingsKey::WHOLE_WORD_CHECK], ui->checkWholeWords->isChecked(),
-            mSettingsGroup);
-    saveParameter(mKeys[SettingsKey::REGEX_CHECK], ui->checkRegEx->isChecked(),
-            mSettingsGroup);
+    saveParameter(mKeys[SettingKey::TextToFind], ui->txtFind->text(),
+            mSettingGroups[SettingGroup::Search]);
+    saveParameter(mKeys[SettingKey::TextToReplace], ui->txtReplace->text(),
+            mSettingGroups[SettingGroup::Search]);
+    saveParameter(mKeys[SettingKey::DownRadio], ui->radioDown->isChecked(),
+            mSettingGroups[SettingGroup::Search]);
+    saveParameter(mKeys[SettingKey::CaseCheck],
+            ui->checkCaseSensitive->isChecked(),
+            mSettingGroups[SettingGroup::Search]);
+    saveParameter(mKeys[SettingKey::WholeWordCheck],
+            ui->checkWholeWords->isChecked(),
+            mSettingGroups[SettingGroup::Search]);
+    saveParameter(mKeys[SettingKey::RegExpCheck], ui->checkRegEx->isChecked(),
+            mSettingGroups[SettingGroup::Search]);
 }
 
 void FindReplaceDialog::readSettings()
 {
-    ui->txtFind->setText(loadParameter(
-                             mKeys[SettingsKey::TEXT_TO_FIND],
-                             mSettingsGroup,
-                             QString()).toString());
-    ui->txtReplace->setText(loadParameter(
-                                mKeys[SettingsKey::TEXT_TO_REPLACE],
-                                mSettingsGroup,
-                                QString()).toString());
-    ui->radioDown->setChecked(loadParameter(
-                                  mKeys[SettingsKey::DOWN_RADIO],
-                                  mSettingsGroup,
-                                  false).toBool());
-    ui->checkCaseSensitive->setChecked(loadParameter(
-                                           mKeys[SettingsKey::CASE_CHECK],
-                                           mSettingsGroup,
-                                          false).toBool());
-    ui->checkWholeWords->setChecked(loadParameter(
-                                        mKeys[SettingsKey::WHOLE_WORD_CHECK],
-                                        mSettingsGroup,
-                                        false).toBool());
-    ui->checkRegEx->setChecked(loadParameter(
-                                   mKeys[SettingsKey::REGEX_CHECK],
-                                   mSettingsGroup,
-                                   false).toBool());
+    auto textToFind = loadParameter(mKeys[SettingKey::TextToFind],
+                                    mSettingGroups[SettingGroup::Search],
+                                    QString()).toString();
+    ui->txtFind->setText(textToFind);
+
+    auto textToReplaceWith = loadParameter(mKeys[SettingKey::TextToReplace],
+                                           mSettingGroups[SettingGroup::Search],
+                                           QString()).toString();
+    ui->txtReplace->setText(textToReplaceWith);
+
+    auto isSearchDirectionDown = loadParameter(mKeys[SettingKey::DownRadio],
+                                           mSettingGroups[SettingGroup::Search],
+                                           false).toBool();
+    ui->radioDown->setChecked(isSearchDirectionDown);
+
+    auto isCaseSensitive = loadParameter(mKeys[SettingKey::CaseCheck],
+                                         mSettingGroups[SettingGroup::Search],
+                                         false).toBool();
+    ui->checkCaseSensitive->setChecked(isCaseSensitive);
+
+    auto checkWholeWorlds = loadParameter(mKeys[SettingKey::WholeWordCheck],
+                                          mSettingGroups[SettingGroup::Search],
+                                          false).toBool();
+    ui->checkWholeWords->setChecked(checkWholeWorlds);
+
+    auto chekcRegEx = loadParameter(mKeys[SettingKey::RegExpCheck],
+                                    mSettingGroups[SettingGroup::Search],
+                                    false).toBool();
+    ui->checkRegEx->setChecked(chekcRegEx);
 }
 
 void FindReplaceDialog::textToFindChanged()

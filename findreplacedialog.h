@@ -29,32 +29,41 @@ public slots:
     void replace();
     void replaceAll();
 
-protected:
-    void closeEvent(QCloseEvent*) override;
-
 private:
+    enum class SettingKey
+    {
+        TextToFind,
+        TextToReplace,
+        DownRadio,
+        CaseCheck,
+        WholeWordCheck,
+        RegExpCheck
+    };
+
+    QMap<SettingKey, QString> mKeys
+    {
+        { SettingKey::TextToFind, "textToFind" },
+        { SettingKey::TextToReplace, "textToReplace" },
+        { SettingKey::DownRadio, "downRadio " },
+        { SettingKey::CaseCheck, "caseCheck" },
+        { SettingKey::WholeWordCheck, "wholeWordCheck" },
+        { SettingKey::RegExpCheck, "regexCheck " }
+    };
+
+    enum class SettingGroup
+    {
+        Search
+    };
+
+    QMap<SettingGroup, QString> mSettingGroups
+    {
+        { SettingGroup::Search, "SearchPreferences"}
+    };
+
     Ui::FindReplaceDialog *ui;
     QTextEdit *mTextEdit;
     QTextCursor mTextCursor;
-    enum class SettingsKey
-    {
-        TEXT_TO_FIND,
-        TEXT_TO_REPLACE,
-        DOWN_RADIO,
-        CASE_CHECK,
-        WHOLE_WORD_CHECK,
-        REGEX_CHECK
-    };
-    QMap<SettingsKey, QString> mKeys
-    {
-        { SettingsKey::TEXT_TO_FIND, "textToFind" },
-        { SettingsKey::TEXT_TO_REPLACE, "textToReplace" },
-        { SettingsKey::DOWN_RADIO, "downRadio "},
-        { SettingsKey::CASE_CHECK, "caseCheck" },
-        { SettingsKey::WHOLE_WORD_CHECK, "wholeWordCheck" },
-        { SettingsKey::REGEX_CHECK, "regexCheck "}
-    };
-    const QString mSettingsGroup {"FindReplaceDialog"};
+
     void writeSettings();
     void readSettings();
 private slots:
