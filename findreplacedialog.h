@@ -29,6 +29,9 @@ public slots:
     void replace();
     void replaceAll();
 
+protected:
+    void closeEvent(QCloseEvent *event);
+
 private:
     enum class SettingKey
     {

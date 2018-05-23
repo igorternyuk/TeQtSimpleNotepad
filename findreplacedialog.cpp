@@ -127,6 +127,11 @@ void FindReplaceDialog::replaceAll()
     this->showInfo(QString("%1 occurences were replaced").arg(counter));
 }
 
+void FindReplaceDialog::closeEvent(QCloseEvent *event)
+{
+    this->hide();
+}
+
 void FindReplaceDialog::writeSettings()
 {
     saveParameter(mKeys[SettingKey::TextToFind], ui->txtFind->text(),
