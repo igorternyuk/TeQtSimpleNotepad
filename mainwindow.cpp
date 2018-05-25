@@ -22,6 +22,11 @@
 #include <QPrinter>
 #include <QVBoxLayout>
 #include <QSettings>
+#include <QMimeData>
+#include <QDragEnterEvent>
+#include <QDragLeaveEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #ifdef DEBUG
 #include <QDebug>
 #endif
@@ -43,12 +48,40 @@ MainWindow::MainWindow(QWidget *parent) :
         mFindReplaceDialog->setTextEdit(mListOfTextEdits.at(index));
     });
     load_settings();
+    setAcceptDrops(true);
 }
 
 MainWindow::~MainWindow()
 {
     save_settings();
     delete ui;
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent *event)
+{
+    event->accept();
+}
+
+void MainWindow::dragLeaveEvent(QDragLeaveEvent *event)
+{
+    event->accept();
+}
+
+void MainWindow::dragMoveEvent(QDragMoveEvent *event)
+{
+    event->accept();
+}
+
+void MainWindow::dropEvent(QDropEvent *event)
+{
+    auto data = event->mimeData();
+    auto urls = data->urls();
+
+    for(auto url: urls)
+    {
+        QString filePath = url.toLocalFile();
+        open_file(filePath);
+    }
 }
 
 void MainWindow::closeEvent(QCloseEvent *)
@@ -87,7 +120,9 @@ void MainWindow::on_action_open_triggered()
                                                      "Choose text files",
                                                      startLocation,
                                                      filter);
-    for(const auto &path: listOfFiles)
+
+    open_files(listOfFiles);
+    /*for(const auto &path: listOfFiles)
     {
         QFile file(path);
         file.open(QIODevice::ReadOnly | QIODevice::Text);
@@ -99,7 +134,7 @@ void MainWindow::on_action_open_triggered()
         create_new_tab(fileInfo.fileName(), path, text);
         file.flush();
         file.close();
-    }
+    }*/
 }
 
 void MainWindow::on_action_save_triggered()

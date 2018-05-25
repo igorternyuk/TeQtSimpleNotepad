@@ -27,6 +27,10 @@ public:
 
 
 protected:
+    void dragEnterEvent(QDragEnterEvent *event);
+    void dragLeaveEvent(QDragLeaveEvent *event);
+    void dragMoveEvent(QDragMoveEvent *event);
+    void dropEvent(QDropEvent *event);
     void closeEvent(QCloseEvent*) override;
 
 private slots:
